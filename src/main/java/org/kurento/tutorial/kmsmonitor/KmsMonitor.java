@@ -12,6 +12,27 @@ import org.kurento.client.RTCStats;
 import org.kurento.client.ServerManager;
 import org.kurento.client.WebRtcEndpoint;
 
+/**
+ * This class makes possible to connect to a given KMS instance and recover
+ * statistics from it. The specific KMS instance needs to be specified at built
+ * time as a WebSocket URI. After that, the <code>updateStats</code> method needs to be called
+ * with the desired frequency for gathering that KMS instance statistics.
+ * 
+ * Every time <code>updateStats</code> is called, statistics for that instant are gathered.
+ * 
+ * Example
+ * <code>
+ * KmsMonitor monitor = new KmsMonitor("ws://localhost:8888/kurento");
+ * KmsStats stats = monitor.updateStats()
+ *... access stats here. 
+ *
+ * 
+ * </code>
+ * 
+ * 
+ * @author llopez
+ * 
+ */
 public class KmsMonitor {
 
 	private String kmsWsUri;
@@ -30,16 +51,15 @@ public class KmsMonitor {
 	private LongCalculator outboundByteCount = new LongCalculator();
 	private LongCalculator outboundDeltaPlis = new LongCalculator();
 	private LongCalculator outboundDeltaNacks = new LongCalculator();
-	
+
 	private LongCalculator numPipelines = new LongCalculator();
 	private LongCalculator numElements = new LongCalculator();
 	private LongCalculator numWebRtcEndpoints = new LongCalculator();
 
-	public KmsMonitor (String kmsWsUri){
+	public KmsMonitor(String kmsWsUri) {
 		this.kmsWsUri = kmsWsUri;
 	}
-	
-	
+
 	public synchronized KmsStats updateStats() {
 
 		KurentoClient kurentoClient = createKurentoClient(kmsWsUri);
@@ -60,15 +80,13 @@ public class KmsMonitor {
 		ServerManager serverManager = kurentoClient.getServerManager();
 		List<MediaPipeline> mediaPipelines = serverManager.getPipelines();
 		numPipelines.addSample(mediaPipelines.size());
-		Object o = mediaPipelines.get(0);
-		System.out.println(o.toString());
 		for (MediaPipeline p : mediaPipelines) {
 			crunchPipeline(p);
 		}
 	}
 
 	private void crunchPipeline(MediaPipeline p) {
-		
+
 		try {
 			List<MediaObject> mediaObjects = p.getChilds();
 			numElements.addSample(mediaObjects.size());
@@ -83,6 +101,7 @@ public class KmsMonitor {
 			// The pipeline may have been released. This does not need to be a
 			// "severe" problem
 			// TODO log t just in case
+			t.printStackTrace();
 		}
 	}
 
@@ -94,17 +113,20 @@ public class KmsMonitor {
 				case inboundrtp:
 					RTCInboundRTPStreamStats inboudStats = (RTCInboundRTPStreamStats) s;
 					inboundJitter.addSample(inboudStats.getJitter());
-					inboundFractionLost.addSample(inboudStats.getFractionLost());
+					inboundFractionLost
+							.addSample(inboudStats.getFractionLost());
 					inboundByteCount.addSample(inboudStats.getBytesReceived());
 					inboundDeltaPlis.addSample(inboudStats.getPliCount());
-					inboundPacketLostCount.addSample(inboudStats.getPacketsLost());
+					inboundPacketLostCount.addSample(inboudStats
+							.getPacketsLost());
 					inboundDeltaNacks.addSample(inboudStats.getNackCount());
 					break;
-					
+
 				case outboundrtp:
 					RTCOutboundRTPStreamStats outboundStats = (RTCOutboundRTPStreamStats) s;
 					outboundRtt.addSample(outboundStats.getRoundTripTime());
-					outboundTargetBitrate.addSample(outboundStats.getTargetBitrate());
+					outboundTargetBitrate.addSample(outboundStats
+							.getTargetBitrate());
 					outboundByteCount.addSample(outboundStats.getBytesSent());
 					outboundDeltaPlis.addSample(outboundStats.getPliCount());
 					outboundDeltaNacks.addSample(outboundStats.getNackCount());
@@ -132,16 +154,20 @@ public class KmsMonitor {
 		inboundJitter = new DoubleCalculator();
 		inboundFractionLost = new DoubleCalculator();
 		inboundByteCount = new LongCalculator();
-		inboundDeltaPlis = new LongCalculator(inboundDeltaPlis.getSum(), inboundDeltaPlis.getTimestamp());
+		inboundDeltaPlis = new LongCalculator(inboundDeltaPlis.getSum(),
+				inboundDeltaPlis.getTimestamp());
 		inboundPacketLostCount = new LongCalculator();
-		inboundDeltaNacks = new LongCalculator(inboundDeltaNacks.getSum(), inboundDeltaNacks.getTimestamp());
+		inboundDeltaNacks = new LongCalculator(inboundDeltaNacks.getSum(),
+				inboundDeltaNacks.getTimestamp());
 
 		outboundRtt = new DoubleCalculator();
 		outboundTargetBitrate = new DoubleCalculator();
 		outboundByteCount = new LongCalculator();
-		outboundDeltaPlis = new LongCalculator(outboundDeltaPlis.getSum(), outboundDeltaNacks.getTimestamp());
-		outboundDeltaNacks = new LongCalculator(outboundDeltaNacks.getSum(), outboundDeltaNacks.getTimestamp());
-		
+		outboundDeltaPlis = new LongCalculator(outboundDeltaPlis.getSum(),
+				outboundDeltaNacks.getTimestamp());
+		outboundDeltaNacks = new LongCalculator(outboundDeltaNacks.getSum(),
+				outboundDeltaNacks.getTimestamp());
+
 		numPipelines = new LongCalculator();
 		numElements = new LongCalculator();
 		numWebRtcEndpoints = new LongCalculator();
@@ -159,26 +185,30 @@ public class KmsMonitor {
 
 		Inbound inboundStats = new Inbound();
 		inboundStats.setByteCount(inboundByteCount.getSum());
-		inboundStats.setDeltaNacks(inboundDeltaNacks.getTemporalAveragedIncrement());
-		inboundStats.setDeltaPlis(inboundDeltaPlis.getTemporalAveragedIncrement());
+		inboundStats.setDeltaNacks(inboundDeltaNacks
+				.getTemporalAveragedIncrement());
+		inboundStats.setDeltaPlis(inboundDeltaPlis
+				.getTemporalAveragedIncrement());
 		inboundStats.setFractionLost(inboundFractionLost.getAverage());
 		inboundStats.setJitter(inboundJitter.getAverage());
 		inboundStats.setPacketLostCount(inboundPacketLostCount.getSum());
 
 		Outbound outboundStats = new Outbound();
 		outboundStats.setByteCount(outboundByteCount.getSum());
-		outboundStats.setDeltaNacks(outboundDeltaNacks.getTemporalAveragedIncrement());
-		outboundStats.setDeltaPlis(outboundDeltaNacks.getTemporalAveragedIncrement());
+		outboundStats.setDeltaNacks(outboundDeltaNacks
+				.getTemporalAveragedIncrement());
+		outboundStats.setDeltaPlis(outboundDeltaNacks
+				.getTemporalAveragedIncrement());
 		outboundStats.setRtt(outboundRtt.getAverage());
 		outboundStats.setTargetBitrate(outboundTargetBitrate.getAverage());
-		
+
 		WebRtcStats webRtcStats = new WebRtcStats(inboundStats, outboundStats);
-		
+
 		KmsStats kmsStats = new KmsStats();
 		kmsStats.setWebRtcStats(webRtcStats);
-		kmsStats.setNumPipelines((int)numPipelines.getSum());
-		kmsStats.setNumWebRtcEndpoints((int)numWebRtcEndpoints.getSum());
-		kmsStats.setNumElements((int)numElements.getSum());
+		kmsStats.setNumPipelines((int) numPipelines.getSum());
+		kmsStats.setNumWebRtcEndpoints((int) numWebRtcEndpoints.getSum());
+		kmsStats.setNumElements((int) numElements.getSum());
 
 		clean();
 
